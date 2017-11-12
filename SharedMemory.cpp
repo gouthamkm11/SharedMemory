@@ -1,0 +1,169 @@
+#include <unistd.h>//This library file is used to access system calls.
+#include <stdlib.h>//This library file is used to implement random number, exit functions
+#include <iostream>//This library file is used to handle input and output in c++
+#include <cstring>//This library file is used to calculate the length of each question so as to store each questions in the created shared memory.
+#include <sys/wait.h>//This library file is used to implement wait function.
+#include <sys/shm.h>//With this library file we can implement the shared memory.
+using namespace std;
+int main()
+{
+int mark[] = {};//To score the marks scored by all the children
+int nid; //Shared Memory for int value
+pid_t pid,pid1;//This datatype is declated to store the process ID of parent and children process
+pid = getpid();//This getpid() method is used to get the process ID of the moderator process
+//Each questions are stored in a character array so as to push the questions into the shared memory that is created in the moderator process.
+char question1[]= "Question 1: What is 1 + 1?";//storing the questions into a character array
+char question2[]= "Question 2: What is 2 * 3?";//storing the questions into a character array
+char question3[]= "Question 3: What is 4 * 1?";//storing the questions into a character array
+//Using the string length function we determine the length of each question and store them in the created shared memory.
+/*cout<<"Length :"<<strlen(question1)<<endl;
+cout<<"Length :"<<strlen(question2)<<endl;
+cout<<"Length :"<<strlen(question3)<<endl;*/
+int t = 100;//The time integer value is initialized for the wait function in moderator process.
+cout<<"Moderator PID "<<pid<<endl; //This statement prints out the moderator's Process ID to the output console.
+cout<<"Enter the no of quiz participants "<<endl;//This statement prints out the content in between the quotes
+int a; //This integer is used to initialize data given through the console
+cin>>a;//Through this command line user's input gets stored in integer value "a".
+int id = shmget(800, 100, IPC_CREAT | 0666);//shmget is the function which is used to create shared memory. The first argument specifies the key of the shared memory, second parameter specifies the total space required for the creation of shared memeory in bytes, through the third parameter we will create the shared memory.
+cout<<"Shared memory ID(For Questions : " <<id<<endl;//This outputs the shm ID for questions shared memory.
+char *vpch;//Character pointer to convert the void pointer return type from shmat function.
+vpch = (char *)shmat(id,NULL,0);//Shmat function is used to attach any process with a shared memory. Here we have type cased the void pointer to a character pointer.
+for(int i = 0; i < 78; i++)//This for loop is used to push each character of the question from 1 to 3 into the shared memory that we have created in the previous
+{
+int j;
+for(j = 0; j < strlen(question1); j++)
+{
+*(vpch+i) = question1[j];
+i++;
+}
+for(int k = 0 ; k < strlen(question2); k++)
+{
+*(vpch+i) = question2[k];
+i++;
+}
+for(int l = 0; l < strlen(question3); l++)
+{
+*(vpch+i) = question3[l];
+i++;
+}
+}
+int id2 = shmget(150, sizeof(int), IPC_CREAT | 0666); //It stores the iteration no in the for loop for child to access it. For generating shared memory ID in the child.
+int* loop = (int*)shmat(id2, NULL, 0);//Attaching the process to the shared memory
+for(int i =0;i<a;i++)
+{
+srand(time(NULL));//Seeding the random number by choosing the current time
+*loop = i;
+pid1 = fork();//The return value is stored in the variable pid1
+pid_t pida;
+if(pid1 == 0)//Accessing the child process
+{
+pida = getpid();
+int sh = shmget((300+i), 16, IPC_CREAT | 0666);//Creating a shared memory to store the random numbers
+int *p = (int*)shmat(sh,NULL,0);//Attaching the shared memory with the process
+*p = pida;
+cout<<"Child process pid "<<*p<<endl;
+sleep(1);//Sleep will produce the random number
+srand(time(NULL));//To generate random variable
+int a = 1 + rand() % 6;//Generating a random number for variable a
+int b = 1 + rand() % 6;//Generating a random number for variable b
+int c = 1 + rand() % 6;//Generating a random number for variable c
+int arr[] = {a,b,c};//Storing all the random numbers in the array
+/*cout<<a[0]<<endl;
+cout<<a[1]<<endl;
+cout<<a[2]<<endl;*/
+int loopno = shmget(150, sizeof(int), 0666);//Accessing the shared memory
+int* loopid = (int*)shmat(loopno, NULL, 0);//Attaching the memory to the process
+int nid = shmget(((*loopid) + 250), 12, IPC_CREAT | 0666);//Creating shared memory to store the random number
+//*loopid = *loopid + 1;
+//int* answer;
+int* answer = (int*)shmat(nid,NULL,0);//Attaching the shared memory to the process
+for(int i = 0; i< 3; i++)
+{
+*(answer + i) = arr[i];//Storing the random number to the shared memory
+}
+//To exit from child
+exit(0);
+}
+wait(&t);//We are making the parent process to wait so that a new child will be created
+}
+for(int t = 0; t < a; t++)//Main for loop to access the random number generated by each child process
+{
+int score = 0; //TO store the score earned by each child process
+int z = 26;
+int i = 26;
+int id = shmget(800, 100, 0666);//Accessing the shared memory to access the question
+char* buf = (char*)shmat(id, NULL, 0);
+int id1 = shmget((t + 250), 12, 0666);//Accessing the shared memory to access the random number generated
+int *rans1 = (int*)shmat(id1, NULL, 0);
+for(int i = 0; i<3;i++)//This for loop accessing answers in the shared memory
+{int j;
+for(j =0; j<z;j++)//This loop is to cout the answers
+{
+cout<<*(buf);
+if((*buf) == '?')
+cout<<endl;
+buf++;
+}
+if(j == 2)
+z = z + 26;//This incrementation is to acces the second question
+else if(j == 1)
+z = z + 26;//THis incrementation is to access the third question
+cout<<*(rans1+i)<<endl;//outputing the answer for each question
+int ans[] = {};
+ans[i] = *(rans1+i);//Storing the answer in an array to give scores
+if(i == 2) //If i == 2 then the questions are over and then the loop goes into marks section
+{
+if((ans[0] == 2) && (ans[1] == 4) && (ans[2] == 6))//Child gets maximum score
+{cout<<" Child "<<t<<" score's 3 points"<<endl;
+mark[t] = 3;}//storing the marks in array to dispay the final result
+else if ((ans[0] == 2) && (ans[1] == 4))
+{cout<<" Child "<<t<<" score's 2 points"<<endl;
+mark[t] = 2;}//storing the marks in array to dispay the final result
+else if ((ans[1] == 4) && (ans[2] == 6))
+{cout<<" Child "<<t<<" score's 2 points"<<endl;
+mark[t] = 2;}//storing the marks in array to dispay the final result
+else if ((ans[2] == 6) && (ans[1] == 1))
+{cout<<" Child "<<t<<" score's 2 points"<<endl;
+mark[t] = 2;}//storing the marks in array to dispay the final result
+else if (ans[0] == 2)
+{cout<<" Child "<<t<<" score's 1 point"<<endl;
+mark[t] = 1;}//storing the marks in array to dispay the final result
+else if (ans[1] == 6)
+{cout<<" Child "<<t<<" score's 1 point"<<endl;
+mark[t] = 1;}//storing the marks in array to dispay the final result
+else if (ans[2] == 4)
+{cout<<" Child "<<t<<" score's 1 point"<<endl;
+mark[t] = 1;}//storing the marks in array to dispay the final result
+else
+{cout<<" Child "<<t<<" score's 0 points"<<endl;
+mark[t] = 0;}//storing the marks in array to dispay the final result
+}//End of if loop
+}//End of second for loop
+}//End of first for loop
+for(int i = 0; i<a;i++)//This loop is to display which child got the first mark
+{
+if((mark[i] == 3) || (mark[i] == 2))
+cout<<"Child "<<i<<" score's first mark"<<endl;
+else if((mark[i] == 2) || (mark[i] == 1))
+cout<<"Child "<<i<<" score's first mark"<<endl;
+else
+cout<<"Child "<<i<<" score's no mark"<<endl;
+}
+for(int i = 0; i<a;i++)//This loop is to kill the child process
+{int s = shmget((300+i), 16, 0666);
+int *p = (int*)shmat(s,NULL,0);//Accessing the shared memory to get the pid of child process
+pid_t pid2 = *p;
+cout<<pid2<<endl;
+int k = kill(pid2, SIGCHLD);//Through SIGCHLD we are killing a process
+cout<<"Child with PID "<<pid2<<" is killed"<<endl;
+}
+/*for(int i = 0; i<a;i++)
+{
+if(mark[i] == 3)
+cout<<"Child "<<i<<" score's full marks"<<endl;
+if(mark[i] == 2)
+cout<<"Child "<<i<<" score's first highest mark"<<endl;
+if(mark[i] == 1)
+cout<<"Child "<<i<<" score's second highest marks"<<endl;
+}*/
+}//End of main
